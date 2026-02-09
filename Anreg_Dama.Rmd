@@ -1,0 +1,228 @@
+---
+title: "Anreg"
+author: "Dama"
+date: "2026-02-04"
+output:
+  html_document:
+    theme: flatly
+    highlight: tango
+    toc: true
+    toc_float: true
+    df_print: paged
+editor_options: 
+  markdown: 
+    wrap: sentence
+  chunk_output_type: inline
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(
+	echo = T,
+	message = FALSE,
+	warning = FALSE
+)
+```
+
+
+# Input Data
+
+Jika data berupa csv, maka tidak perlu pemanggilan `library(readxl)` karena R sudah memiliki fungsi bawaan terhadap hal tersebut.
+Apabila file .csv pada software excel ditunjukkan dengan delimiter “,” maka dapat menggunakan fungsi `read.csv`, apabila delimiter berupa “;” maka dapat menggunakan fungsi `read.csv2`.
+
+```{r}
+library(readxl)
+library(ggplot2)
+
+data_anreg <- read_excel("C:\\Users\\USER\\Documents\\A MATKUL IPB/Semester 4/Anreg/Bahan data/NSC-2025.xlsx")
+
+as.data.frame(data_anreg)
+colnames(data_anreg) <- c("Kabupaten/Kota", "Y", paste0("X", 1:9))
+head(data_anreg)
+```
+
+
+# Eksplorasi {.tabset .tabset-fade .tabset-pills}
+
+## Informasi Data
+
+```{r}
+str(data_anreg)
+
+```
+
+```{r}
+summary(data_anreg)
+```
+
+
+1.  Menggunakan Package psych.Cara paling populer di kalangan peneliti untuk mendapatkan rangkuman lengkap adalah menggunakan fungsi describe() dari package psych.
+
+-   sd: Standard Deviation.
+-   var (opsional di versi tertentu): Jika tidak muncul, Anda bisa menghitungnya (SD kuadrat).
+-   skew: Kemiringan data.
+-   kurtosis: Keruncingan data.
+-   se: Standard Error.
+
+```{r}
+library(psych)
+describe(data_anreg)
+```
+
+2.  Menggunakan Package skimr.
+
+Kelebihan skimr:
+
+-   Memisahkan rangkuman antara kolom teks dan kolom angka.
+-   Menampilkan jumlah NA secara jelas.
+-   Menampilkan SD secara otomatis.
+-   Ada histogram mini yang menunjukkan distribusi data (apakah data Anda menumpuk di angka tinggi atau rendah).
+
+```{r}
+library(skimr)
+skim(data_anreg)
+```
+
+## Data NA
+
+```{r}
+library(dplyr)
+library(tidyr)
+colSums(is.na(data_anreg))
+```
+
+DISINI TERLIHAT ADA DATA **na** di Kolom X1-X7
+
+Menghapus semua baris yang punya minimal satu NA
+
+```{r}
+# Menghapus semua baris yang punya minimal satu NA
+data_bersih_anreg = na.omit(data_anreg)
+summary(data_bersih_anreg)
+```
+# Pembentukan Model
+
+
+```{r}
+y = data_bersih_anreg$Y
+x = data_bersih_anreg$X9
+n <- nrow(data_bersih_anreg)
+```
+
+```{r}
+b1 = (sum(x*y)-sum(x)*sum(y)/n)/(sum(x^2)-(sum(x)^2/n))
+b0 <- mean(y)-b1*mean(x)
+
+cat("Koefisien b0:", b0, "\n")  
+cat("Koefisien b1:", b1, "\n")
+```
+## Standar Error Parameter Regresi
+
+Standar error menunjukan seberapa besar ketidakpastian dalam estimasi koefisien
+
+
+```{r}
+galat <- y-(b0+b1*x)
+ragam_galat <- sum(galat^2)/(n-2)
+
+se_b0 <- sqrt(ragam_galat*(1/n+mean(x)^2/sum((x-mean(x))^2)))
+se_b1 <- sqrt(ragam_galat/sum((x-mean(x))^2))
+
+cat("Standar error b0:", se_b0, "\n") 
+cat("Standar error b1:", se_b1, "\n")
+```
+## Signifikansi Parameter (nilai-t)
+
+Nilai ini menunjukkan tingkat signifikansi secara parsial dari setiap koefisien peubah berdasarkan nilai t dan probabilitas nilai p
+
+
+```{r}
+t_b0 <- b0/se_b0
+t_b1 <- b1/se_b1
+p_b0 <- 2*pt(-abs(t_b0 ),df<-n-2)
+p_b1 <- 2*pt(-abs(t_b1 ),df<-n-2)
+
+cat("Nilai t pada b0 adalah", t_b0, "dengan nilai p sebesar", p_b0, "\n")  
+```
+```{r}
+cat("Nilai t pada b1 adalah", t_b1, "dengan nilai p sebesar", p_b1, "\n") 
+```
+Nilai p kurang dari alpha 0.05 untuk b0 maupun b1 sehingga signifikan pada taraf nyata 5%
+
+## Koefisien Determinasi dan Penyesuaiannya
+
+Pada analisis regresi linier sederhana, koefisien determinasi yang digunakan adalah multiple R Squared, sedangkan regresi linier berganda menggunakan adjusted R Squared yang disesuaikan dengan banyaknya peubah
+
+```{r}
+r <- (sum(x*y)-sum(x)*sum(y)/n)/
+sqrt((sum(x^2)-(sum(x)^2/n))*(sum(y^2)-(sum(y)^2/n)))
+Koef_det <- r^2
+Koef_det
+```
+
+```{r}
+Adj_R2 <- 1-((1-Koef_det)*(n-1)/(n-1-1))
+Adj_R2
+```
+
+## Signifikansi Simultan (F)
+
+Nilai ini menunjukkan signifikansi dan kebaikan model secara simultan (bersamaan seluruh peubah) yang menjelaskan model secara keseluruhan memiliki hubungan berarti antara X dan Y
+
+```{r}
+galat<-y-(b0+b1*x)
+
+JKG <- sum((y - (b0+b1*x))^2)
+JKReg <- sum(((b0+b1*x)- mean(y))^2)
+JKT <- sum((y - mean(y))^2)
+JKT <- JKReg+JKG
+
+dbReg <- 1
+dbg <- n-2
+dbt <- n-1
+
+(Fhit <- (JKReg/dbReg)/(JKG/dbg))
+```
+
+
+```{r}
+(p_Fhit <- 1-pf(Fhit, dbReg, dbg, lower.tail = F))
+```
+
+Nilai p kurang dari alpha 0.05 sehingga secara simultan X dan Y saling memengaruhi
+
+
+## Menggunakan Fungsi `lm()`
+
+Dalam penggunaan fungsi `lm()`, kita akan memperoleh secara langsung nilai-nilai pada pemodelan regresi dari data yang kita miliki. Hanya dengan mengeluarkan summary dan anova dari model yang terbentuk maka dapat diperoleh nilai parameter, signifikansinya, standar eror, koefisien determinasi hingga ukuran keragamannya.
+
+```{r}
+model <- lm(Y~X1, data = data_anreg)
+summary(model)
+```
+
+Berdasarkan hasil diperoleh bahwa kedua cara valid dan memberikan hasil yang sama dalam membuat pemodelan regresi linear sederhana.
+
+```{r}
+anova(model)
+```
+# Visualisasi
+
+```{r}
+boxplot(data_bersih_anreg$Y)
+```
+
+```{r}
+boxplot(data_bersih_anreg$X9)
+```
+
+
+
+# Kesimpulan
+
+Model yang terbentuk adalah sebagai berikut:
+
+$$\hat{Y} = 73.49741  + 0.4473984   X_1$$
+
+
+
+
